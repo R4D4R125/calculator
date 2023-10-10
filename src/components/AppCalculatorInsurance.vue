@@ -69,7 +69,9 @@
             id="sportoveAktivity"
             class="checkbox"
           />
-          <label class="pripoistenie" for="sportoveAktivity">Športové aktivity</label>
+          <label class="pripoistenie" for="sportoveAktivity"
+            >Športové aktivity</label
+          >
         </div>
       </div>
 
@@ -115,6 +117,7 @@ export default {
       sportoveAktivity: false, // Pripoistenie - Športové aktivity (true ak je začiarknuté, inak false)
       numberOfPersons: 0, // Počet osôb poistených
       insurancePrice: null, // Cena poistenia
+      minAnnualEndDate: null, // Inicializujeme minAnnualEndDate na null
     };
   },
   methods: {
@@ -125,6 +128,7 @@ export default {
         rozsireny: 1.8,
         extra: 2.4,
       };
+
       const annualRates = {
         zakladny: 39,
         rozsireny: 49,
@@ -132,26 +136,64 @@ export default {
       };
 
       // Prirážky pre pripoistenia
-      const stornoPrirazka = this.stornoCesty ? 0.5 : 0; // Prirážka pre storno cesty
-      const sportoveAktivityPrirazka = this.sportoveAktivity ? 0.3 : 0; // Prirážka pre športové aktivity
+      const stornoPrirazka = this.stornoCesty ? 0.2 : 0; // Prirážka pre storno cesty (20% začiarknuté, inak 0%)
+      const sportoveAktivityPrirazka = this.sportoveAktivity ? 0.1 : 0; // Prirážka pre športové aktivity (10% začiarknuté, inak 0%)
 
-      // Výpočet ceny poistenia
-      const selectedRates =
-        this.selectedInsuranceType === "kratkodobe"
-          ? shortTermRates
-          : annualRates;
-      const baseRate = selectedRates[this.selectedPackage]; // Sadzba za vybraný balík
-      const numberOfDays =
-        (new Date(this.endDate) - new Date(this.startDate)) /
-        (1000 * 60 * 60 * 24); // Počet dní poistenia
-      const totalPrice =
-        baseRate *
-        numberOfDays *
-        this.numberOfPersons *
-        (1 + stornoPrirazka) *
-        (1 + sportoveAktivityPrirazka); // Celková cena poistenia
+      // Prirážky pre krátkodobé poistenie
+      const shortTermStornoPrirazka = this.stornoCesty ? 0.5 : 0; // Prirážka pre storno cesty (50%)
+      const shortTermSportoveAktivityPrirazka = this.sportoveAktivity ? 0.3 : 0; // Prirážka pre športové aktivity (30%)
 
-      this.insurancePrice = totalPrice; // Nastaviť vypočítanú cenu poistenia
+      // Počet milisekund v jednom dni
+      const oneDay = 24 * 60 * 60 * 1000;
+
+      if (this.selectedInsuranceType === "celorocne") {
+        // Výpočet ceny pre celoročne poistenia
+        this.insurancePrice =
+          annualRates[this.selectedPackage] + // Cena za vybraný balík poistenia na den
+          this.numberOfPersons * // Počet poistenych osob
+            (stornoPrirazka * annualRates[this.selectedPackage]) + // Prirážka pre storno cesty
+          sportoveAktivityPrirazka * annualRates[this.selectedPackage]; // Prirážka pre športové aktivity
+      } else {
+        // Výpočet ceny pre krátkodobé poistenia
+        let selectedRates = null;
+        let selectedStornoPrirazka = shortTermStornoPrirazka;
+        let selectedSportoveAktivityPrirazka =
+          shortTermSportoveAktivityPrirazka;
+
+        if (this.selectedInsuranceType === "kratkodobe") {
+          selectedRates = shortTermRates;
+        }
+
+        const baseRate = selectedRates[this.selectedPackage]; // Sadzba za vybraný balík poistenia
+        const numberOfDays =
+          (new Date(this.endDate) - new Date(this.startDate)) / oneDay; // Počet dní poistenia
+        const totalPrice =
+          baseRate * // Cena za vybraný balík poistenia na den
+          numberOfDays * // Celkový počet dní poistenia
+          this.numberOfPersons * // Počet poistenych osob
+          (1 + selectedStornoPrirazka + selectedSportoveAktivityPrirazka); // Prirážky pre storno a športové aktivity
+
+        this.insurancePrice = totalPrice; // Nastavení vypočítané ceny poistenia
+      }
+    },
+    handleInsuranceTypeChange() {
+      // Ak je vybraný "Celorocné poistenie," nastavíme koncový dátum na rok od aktuálneho dátumu
+      if (this.selectedInsuranceType === "celorocne") {
+        this.endDate = new Date(new Date().getFullYear() + 1, 0, 1)
+          .toISOString()
+          .split("T")[0];
+      }
+    },
+  },
+  watch: {
+    selectedInsuranceType(newVal) {
+      if (newVal === "celorocne") {
+        // Ak je vybrané "Celorocné poistenie," nastavíme koncový dátum na 365 dní od aktuálneho dátumu
+        const currentDate = new Date();
+        const endDate = new Date(currentDate);
+        endDate.setDate(currentDate.getDate() + 365);
+        this.endDate = endDate.toISOString().split("T")[0];
+      }
     },
   },
 };
@@ -225,7 +267,7 @@ h1 {
   height: 20px;
   cursor: pointer;
 }
-.pripoistenie{
+.pripoistenie {
   font-weight: normal;
   font-size: 18px;
 }
